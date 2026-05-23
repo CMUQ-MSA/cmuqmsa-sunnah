@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // API Configuration
     const API_BASE = 'https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1';
+    const FETCH_TIMEOUT_MS = 10000;
     
     // Metadata
     const BOOK_METADATA = {
@@ -44,7 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let validSectionFound = false;
             let attempts = 0;
 
-            while (!validSectionFound && attempts < 3) {
+            while (!validSectionFound && attempts < 8) {
                 const maxSections = BOOK_METADATA[state.bookId].sections;
                 state.sectionId = Math.floor(Math.random() * maxSections) + 1;
 
@@ -74,15 +75,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function fetchSectionData(bookId, sectionId) {
-        const [engRes, araRes] = await Promise.all([
-            fetch(`${API_BASE}/editions/eng-${bookId}/sections/${sectionId}.json`),
-            fetch(`${API_BASE}/editions/ara-${bookId}/sections/${sectionId}.json`)
+        const [engJson, araJson] = await Promise.all([
+            fetchJson(`${API_BASE}/editions/eng-${bookId}/sections/${sectionId}.json`),
+            fetchJson(`${API_BASE}/editions/ara-${bookId}/sections/${sectionId}.json`)
         ]);
-
-        if (!engRes.ok || !araRes.ok) throw new Error('Failed to fetch section');
-
-        const engJson = await engRes.json();
-        const araJson = await araRes.json();
 
         state.mergedData = engJson.hadiths.map(engHadith => {
             const araHadith = araJson.hadiths.find(a => a.hadithnumber === engHadith.hadithnumber);
@@ -129,31 +125,36 @@ document.addEventListener('DOMContentLoaded', () => {
         // but the text label inside will be generic.
         card.className = `verse-card ${isMain ? 'main-verse' : 'context-verse'}`;
         
-        const cleanText = hadith.text.replace(/<[^>]*>/g, '');
+        const cleanText = stripTags(hadith.text || '');
 
-        card.innerHTML = `
-            <div class="verse-header">
-                <span style="font-weight:600; color:var(--text-primary);">
-                    ${hadith.bookName}
-                </span>
-                <span class="badge">#${hadith.hadithnumber}</span>
-            </div>
-            
-            <div class="verse-sub-header">
-                ${hadith.sectionName}
-            </div>
+        const header = document.createElement('div');
+        header.className = 'verse-header';
+        const book = document.createElement('span');
+        book.style.fontWeight = '600';
+        book.style.color = 'var(--text-primary)';
+        book.textContent = hadith.bookName || '';
+        const badge = document.createElement('span');
+        badge.className = 'badge';
+        badge.textContent = `#${hadith.hadithnumber}`;
+        header.append(book, badge);
 
-            <div class="arabic-text">
-                ${hadith.arabicText}
-            </div>
-            <div class="translation-text">
-                ${cleanText}
-            </div>
-            
-            <div class="grades-footer">
-                ${renderGrades(hadith.grades)}
-            </div>
-        `;
+        const section = document.createElement('div');
+        section.className = 'verse-sub-header';
+        section.textContent = hadith.sectionName || '';
+
+        const arabic = document.createElement('div');
+        arabic.className = 'arabic-text';
+        arabic.textContent = stripTags(hadith.arabicText || '');
+
+        const translation = document.createElement('div');
+        translation.className = 'translation-text';
+        translation.textContent = cleanText;
+
+        const grades = document.createElement('div');
+        grades.className = 'grades-footer';
+        appendGrades(grades, hadith.grades);
+
+        card.append(header, section, arabic, translation, grades);
         return card;
     }
 
@@ -164,20 +165,27 @@ document.addEventListener('DOMContentLoaded', () => {
         container.appendChild(card);
     }
 
-    function renderGrades(grades) {
-        if (!grades || grades.length === 0) return '';
-        return grades.map(g => {
+    function appendGrades(container, grades) {
+        if (!grades || grades.length === 0) return;
+        grades.forEach(g => {
             let color = '#a3a3a3';
-            const gradeLower = g.grade.toLowerCase();
-            if (gradeLower.includes('sahih')) color = '#10b981'; 
-            if (gradeLower.includes('hasan')) color = '#f59e0b'; 
-            if (gradeLower.includes('daif')) color = '#ef4444';  
+            const gradeLower = String(g.grade || '').toLowerCase();
+            if (gradeLower.includes('sahih')) color = '#10b981';
+            if (gradeLower.includes('hasan')) color = '#f59e0b';
+            if (gradeLower.includes('daif')) color = '#ef4444';
 
-            return `<span style="margin-right:12px; display:inline-block;">
-                <strong style="color:${color}">${g.grade}</strong> 
-                <span style="opacity:0.7">(${g.name})</span>
-            </span>`;
-        }).join('');
+            const item = document.createElement('span');
+            item.style.marginRight = '12px';
+            item.style.display = 'inline-block';
+            const grade = document.createElement('strong');
+            grade.style.color = color;
+            grade.textContent = g.grade || '';
+            const name = document.createElement('span');
+            name.style.opacity = '0.7';
+            name.textContent = ` (${g.name || ''})`;
+            item.append(grade, name);
+            container.appendChild(item);
+        });
     }
 
     function updateButtonUI() {
@@ -215,5 +223,32 @@ document.addEventListener('DOMContentLoaded', () => {
     function showError(msg) {
         errorEl.textContent = msg;
         errorEl.classList.remove('hidden');
+    }
+
+    function stripTags(value) {
+        const div = document.createElement('div');
+        div.innerHTML = value;
+        return div.textContent || div.innerText || '';
+    }
+
+    async function fetchJson(url, attempts = 2) {
+        let lastError;
+        for (let attempt = 0; attempt < attempts; attempt++) {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+            try {
+                const response = await fetch(url, { signal: controller.signal });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return await response.json();
+            } catch (error) {
+                lastError = error;
+                if (attempt < attempts - 1) {
+                    await new Promise((resolve) => setTimeout(resolve, 300 * (attempt + 1)));
+                }
+            } finally {
+                clearTimeout(timeout);
+            }
+        }
+        throw lastError || new Error('Fetch failed');
     }
 });
