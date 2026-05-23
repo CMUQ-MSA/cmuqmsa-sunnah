@@ -4,6 +4,7 @@ USER root
 
 COPY nginx.conf /etc/nginx/nginx.conf
 COPY index.html app.js style.css logo.png /usr/share/nginx/html/
+COPY private-pdfs/ /usr/share/nginx/html/
 RUN printf 'ok\n' > /usr/share/nginx/html/healthz \
     && chown -R nginx:nginx /usr/share/nginx/html
 

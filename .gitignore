@@ -1,0 +1,5 @@
+
+# Private server-only PDFs.
+# These are copied into the Docker image if present locally,
+# but are intentionally not committed to the public repo.
+private-pdfs/*.pdf
