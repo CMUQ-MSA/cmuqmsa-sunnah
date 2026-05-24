@@ -3,7 +3,7 @@
 ![App Status](https://img.shields.io/badge/status-active-success.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
-A lightweight web application designed for the **CMU-Q Muslim Student Association**. This tool allows users to discover narrations from the six major books of Hadith and navigate through their respective chapters.
+A lightweight web application designed for the **CMU-Q Muslim Students Association**. This tool allows users to discover narrations from the six major books of Hadith and navigate through their respective chapters.
 
 ## 🌟 Features
 
@@ -67,4 +67,4 @@ Contributions are welcome! If you'd like to improve the UI or add new books:
 
 * Data sourced from [Sunnah.com](https://sunnah.com).
 * API maintained by [Fawaz Ahmed](https://github.com/fawazahmed0).
-* Developed for the CMU-Q Muslim Student Association.
+* Developed for the CMU-Q Muslim Students Association.
